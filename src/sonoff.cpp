@@ -26,13 +26,6 @@ void setup()
         memcpy(str, bytes, length);
         str[length] = '\0';
 
-#ifdef DEBUG
-        Serial.print("MSG ");
-        Serial.print(topic);
-        Serial.print(": ");
-        Serial.println(str);
-#endif
-
         if (strcmp(topic, TOPIC) == 0)
         {
             if (strcmp(str, "on") == 0)
