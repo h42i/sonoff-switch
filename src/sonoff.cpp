@@ -7,7 +7,7 @@
 
 #define DEBUG
 
-#define SWITCH_NUMBER_STRING "2"
+#define SWITCH_NUMBER_STRING "3"
 
 #define RELAY_PIN  12
 #define BUTTON_PIN 0
@@ -20,10 +20,15 @@
 #define WIFI_SSID     "HaSi-Kein-Internet-Legacy"
 #define WIFI_PASSWORD "bugsbunny"
 
+#define OTA_PASSWORD "bugsbunny"
+
 #define MQTT_BROKER "atlas.hasi"
 #define MQTT_PORT   1883
 
-#define SWITCH_TOPIC "hasi/switches/" SWITCH_NUMBER_STRING
+#define SWITCH_TOPIC                "hasi/switches/" SWITCH_NUMBER_STRING
+#define SWITCH_RESPONSE_TOPIC       SWITCH_TOPIC "/response"
+#define SWITCH_STATE_TOPIC          SWITCH_TOPIC "/state"
+#define SWITCH_STATE_RESPONSE_TOPIC SWITCH_STATE_TOPIC "/response"
 
 bool relayOn = false;
 
@@ -81,18 +86,35 @@ void setup()
     Espanol.subscribe(SWITCH_TOPIC);
     Espanol.begin(WIFI_SSID, WIFI_PASSWORD, HOSTNAME, MQTT_BROKER, MQTT_PORT);
 
-    Espanol.setCallback([](char *topic, uint8_t *bytes, unsigned int length) {
-        char *str = new char[length + 1];
-        memcpy(str, bytes, length);
-        str[length] = '\0';
+    Espanol.setCallback([](char *cTopicStr, uint8_t *bytes, unsigned int length) {
+        String content, topic;
 
-        if (strcmp(topic, SWITCH_TOPIC) == 0)
+        topic = String(cTopicStr);
+
+        char *cContentStr = new char[length + 1];
+        memcpy(cContentStr, bytes, length);
+        cContentStr[length] = '\0';
+        content = String(cContentStr);
+        free(cContentStr);
+
+        if (topic.equals(SWITCH_TOPIC))
         {
-            if (strcmp(str, "on") == 0)
+            if (content.equals("help"))
+            {
+                Espanol.publish(SWITCH_RESPONSE_TOPIC, "");
+            }
+        }
+        else if (topic.equals(SWITCH_STATE_TOPIC))
+        {
+            if (content.equals("get"))
+            {
+                Espanol.publish(SWITCH_STATE_RESPONSE_TOPIC, relayOn ? "on" : "off");
+            }
+            else if (content.equals("on"))
             {
                 switchRelayOn();
             }
-            else if (strcmp(str, "off") == 0)
+            else if (content.equals("off"))
             {
                 switchRelayOff();
             }
@@ -100,6 +122,16 @@ void setup()
     });
 
     switchRelayOff();
+
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        Espanol.loop();
+        delay(100);
+    }
+
+    ArduinoOTA.setHostname(HOSTNAME);
+    ArduinoOTA.setPassword(OTA_PASSWORD);
+    ArduinoOTA.begin();
 }
 
 void loop()
@@ -107,6 +139,7 @@ void loop()
     static int lastButtonState = HIGH;
     static int debounceCounter = 0;
 
+    ArduinoOTA.handle();
     Espanol.loop();
 
     if (debounceCounter > 0)
