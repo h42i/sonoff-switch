@@ -2,7 +2,6 @@
 #include <Arduino.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
-#include "PubSubClient.h"
 #include "Espanol.h"
 
 #define DEBUG
@@ -25,10 +24,24 @@
 #define MQTT_BROKER "atlas.hasi"
 #define MQTT_PORT   1883
 
-#define SWITCH_TOPIC                "hasi/switches/" SWITCH_NUMBER_STRING
-#define SWITCH_RESPONSE_TOPIC       SWITCH_TOPIC "/response"
-#define SWITCH_STATE_TOPIC          SWITCH_TOPIC "/state"
-#define SWITCH_STATE_RESPONSE_TOPIC SWITCH_STATE_TOPIC "/response"
+#define RESPONSE_SUFFIX              "/response"
+#define SWITCH_TOPIC                 "hasi/switches/" SWITCH_NUMBER_STRING
+#define SWITCH_TOPICS_TOPIC          SWITCH_TOPIC "/topics"
+#define SWITCH_TOPICS_RESPONSE_TOPIC SWITCH_TOPICS_TOPIC RESPONSE_SUFFIX
+#define SWITCH_HELP_TOPIC            SWITCH_TOPIC "/help"
+#define SWITCH_HELP_RESPONSE_TOPIC   SWITCH_HELP_TOPIC RESPONSE_SUFFIX
+#define SWITCH_STATE_TOPIC           SWITCH_TOPIC "/state"
+#define SWITCH_STATE_RESPONSE_TOPIC  SWITCH_STATE_TOPIC RESPONSE_SUFFIX
+
+#define TOPICS_LIST "topics:string,help:string,state:string"
+
+#define HELP_MESSAGE "Switch (hasi/switches/" SWITCH_NUMBER_STRING ")\n" \
+                     "\n" \
+                     "This switch is a Sonoff switch switchable over MQTT.\n" \
+                     "\n" \
+                     "TOPICS\n" \
+                     "    state: \"on\" or \"off\"\n" \
+                     "        - Set switch on or off"
 
 bool relayOn = false;
 
@@ -83,7 +96,9 @@ void setup()
     pinMode(BUTTON_PIN, INPUT_PULLUP);
     pinMode(LED_PIN, OUTPUT);
 
-    Espanol.subscribe(SWITCH_TOPIC);
+    Espanol.subscribe(SWITCH_TOPICS_TOPIC);
+    Espanol.subscribe(SWITCH_HELP_TOPIC);
+    Espanol.subscribe(SWITCH_STATE_TOPIC);
     Espanol.begin(WIFI_SSID, WIFI_PASSWORD, HOSTNAME, MQTT_BROKER, MQTT_PORT);
 
     Espanol.setCallback([](char *cTopicStr, uint8_t *bytes, unsigned int length) {
@@ -97,11 +112,18 @@ void setup()
         content = String(cContentStr);
         free(cContentStr);
 
-        if (topic.equals(SWITCH_TOPIC))
+        if (topic.equals(SWITCH_TOPICS_TOPIC))
         {
-            if (content.equals("help"))
+            if (content.equals("get"))
             {
-                Espanol.publish(SWITCH_RESPONSE_TOPIC, "");
+                Espanol.publish(SWITCH_TOPICS_RESPONSE_TOPIC, TOPICS_LIST);
+            }
+        }
+        else if (topic.equals(SWITCH_HELP_TOPIC))
+        {
+            if (content.equals("get"))
+            {
+                Espanol.publish(SWITCH_HELP_RESPONSE_TOPIC, HELP_MESSAGE);
             }
         }
         else if (topic.equals(SWITCH_STATE_TOPIC))
